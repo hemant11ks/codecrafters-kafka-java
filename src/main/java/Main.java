@@ -11,53 +11,59 @@ public class Main {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             serverSocket.setReuseAddress(true);
 
-            // Wait for a client to connect
             try (Socket clientSocket = serverSocket.accept()) {
                 System.out.println("Client connected: " + clientSocket.getInetAddress());
 
                 InputStream in = clientSocket.getInputStream();
                 OutputStream out = clientSocket.getOutputStream();
 
-                // Read message size (4 bytes, big-endian)
+                // Read message size (4 bytes)
                 byte[] messageSizeBytes = new byte[4];
                 in.read(messageSizeBytes);
 
-                // Read API version request (6 bytes)
+                // Read request header (6 bytes)
                 byte[] requestHeader = new byte[6];
                 in.read(requestHeader);
 
-                // Extract correlation ID (last 4 bytes of request header)
+                // Extract correlation ID (last 4 bytes of the request header)
                 byte[] correlationIdBytes = new byte[4];
                 System.arraycopy(requestHeader, 2, correlationIdBytes, 0, 4);
 
-                // Build the response
-                ByteArrayOutputStream responseBuffer = new ByteArrayOutputStream();
-                DataOutputStream response = new DataOutputStream(responseBuffer);
-
-                // Write the correlation ID
-                response.write(correlationIdBytes);
+                // Prepare the response body
+                ByteArrayOutputStream responseBodyStream = new ByteArrayOutputStream();
+                DataOutputStream responseBody = new DataOutputStream(responseBodyStream);
 
                 // Write the error code (2 bytes, 0 for no error)
-                response.writeShort(0);
+                responseBody.writeShort(0);
 
-                // Write number of API versions (1 for now)
-                response.writeShort(1);
+                // Write the number of API keys (1 key for now)
+                responseBody.writeShort(1);
 
-                // Write API version entry for key 18
-                response.writeShort(18); // API key
-                response.writeShort(0);  // MinVersion
-                response.writeShort(4);  // MaxVersion
+                // Write the API key entry
+                responseBody.writeShort(18); // API Key (18 for ApiVersions)
+                responseBody.writeShort(0);  // Min Version
+                responseBody.writeShort(4);  // Max Version
 
-                // Get the response body as bytes
-                byte[] responseBody = responseBuffer.toByteArray();
+                // Convert response body to byte array
+                byte[] responseBodyBytes = responseBodyStream.toByteArray();
 
-                // Write the message length (4 bytes) followed by the response body
-                DataOutputStream output = new DataOutputStream(out);
-                output.writeInt(responseBody.length);
-                output.write(responseBody);
+                // Prepare the full response
+                ByteArrayOutputStream fullResponseStream = new ByteArrayOutputStream();
+                DataOutputStream fullResponse = new DataOutputStream(fullResponseStream);
 
-                // Ensure the output is sent
-                output.flush();
+                // Write the message size (response body length + 4 for correlation ID)
+                fullResponse.writeInt(responseBodyBytes.length + 4);
+
+                // Write the correlation ID
+                fullResponse.write(correlationIdBytes);
+
+                // Write the response body
+                fullResponse.write(responseBodyBytes);
+
+                // Send the full response
+                out.write(fullResponseStream.toByteArray());
+                out.flush();
+
                 System.out.println("Response sent successfully.");
             }
         } catch (IOException e) {
