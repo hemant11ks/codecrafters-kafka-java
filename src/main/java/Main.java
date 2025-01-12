@@ -47,12 +47,15 @@ public class Main {
                 // Convert response body to byte array
                 byte[] responseBodyBytes = responseBodyStream.toByteArray();
 
+                // Calculate total message size
+                int totalSize = responseBodyBytes.length + 4; // Body length + correlation ID
+
                 // Prepare the full response
                 ByteArrayOutputStream fullResponseStream = new ByteArrayOutputStream();
                 DataOutputStream fullResponse = new DataOutputStream(fullResponseStream);
 
-                // Write the message size (response body length + 4 for correlation ID)
-                fullResponse.writeInt(responseBodyBytes.length + 4);
+                // Write the message size (4 bytes)
+                fullResponse.writeInt(totalSize);
 
                 // Write the correlation ID
                 fullResponse.write(correlationIdBytes);
