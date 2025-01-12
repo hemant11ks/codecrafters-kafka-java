@@ -25,32 +25,38 @@ public class Main {
             byte[] messageSizeBytes = new byte[4];
             in.read(messageSizeBytes);
 
-            // Skip request_api_key (2 bytes) and request_api_version (2 bytes)
-            in.skip(4);
+            // Read request_api_key (2 bytes, ignored) and request_api_version (2 bytes)
+            byte[] apiVersionBytes = new byte[2];
+            in.skip(2); // Skip request_api_key
+            in.read(apiVersionBytes);
+            int apiVersion = ((apiVersionBytes[0] & 0xFF) << 8) | (apiVersionBytes[1] & 0xFF);
 
-            // Read the correlation_id (4 bytes, big-endian)
+            // Read correlation_id (4 bytes, big-endian)
             byte[] correlationIdBytes = new byte[4];
             in.read(correlationIdBytes);
 
-            // Log the correlation ID for debugging
-            int correlationId = (correlationIdBytes[0] & 0xFF) << 24 |
-                                (correlationIdBytes[1] & 0xFF) << 16 |
-                                (correlationIdBytes[2] & 0xFF) << 8 |
-                                (correlationIdBytes[3] & 0xFF);
-            System.out.println("Received correlation ID: " + correlationId);
+            // Log extracted data
+            System.out.println("Received API version: " + apiVersion);
+            System.out.println("Received correlation ID: " + bytesToHex(correlationIdBytes));
 
             // Prepare the response
             OutputStream out = clientSocket.getOutputStream();
 
-            // Write message size (4 bytes, big-endian, value: 0)
+            // Write message_size (4 bytes, value: 0 for now)
             out.write(new byte[]{0, 0, 0, 0});
 
-            // Write the correlation ID (4 bytes, big-endian)
+            // Write the correlation ID
             out.write(correlationIdBytes);
+
+            // Determine if the version is unsupported
+            if (apiVersion < 0 || apiVersion > 4) {
+                // Write the error_code field (2 bytes, big-endian, value: 35)
+                out.write(new byte[]{0x00, 0x23}); // 35 in hexadecimal
+                System.out.println("Unsupported API version. Sent error code 35.");
+            }
 
             // Ensure the output is sent
             out.flush();
-            System.out.println("Response sent with correlation ID: " + correlationId);
         } catch (IOException e) {
             System.out.println("IOException: " + e.getMessage());
         } finally {
@@ -65,5 +71,14 @@ public class Main {
                 System.out.println("IOException: " + e.getMessage());
             }
         }
+    }
+
+    // Helper method to convert bytes to hex string
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 }
