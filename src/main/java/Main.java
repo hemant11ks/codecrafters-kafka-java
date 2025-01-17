@@ -2,48 +2,42 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.ByteBuffer;
 
 public class Main {
+    private static final int PORT = 9092;
+
     public static void main(String[] args) {
-        System.err.println("Logs from your program will appear here!");
+        System.err.println("Server starting on port " + PORT);
 
-        ServerSocket serverSocket = null;
-        Socket clientSocket = null;
-        int port = 9092;
-
-        try {
-            serverSocket = new ServerSocket(port);
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             serverSocket.setReuseAddress(true);
 
-            // Wait for a client to connect
-            clientSocket = serverSocket.accept();
-            System.out.println("Client connected: " + clientSocket.getInetAddress());
+            while (true) {
+                System.out.println("Waiting for a client...");
+                try (Socket clientSocket = serverSocket.accept()) {
+                    System.out.println("Client connected: " + clientSocket.getInetAddress());
 
-            // Prepare the response
-            OutputStream out = clientSocket.getOutputStream();
+                    // Handle client communication
+                    handleClient(clientSocket);
+                } catch (IOException e) {
+                    System.err.println("Error handling client: " + e.getMessage());
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Server error: " + e.getMessage());
+        }
+    }
 
-            // Send message size (4 bytes, big-endian)
-            out.write(new byte[] {0, 0, 0, 0});
+    private static void handleClient(Socket clientSocket) throws IOException {
+        try (OutputStream out = clientSocket.getOutputStream()) {
+            ByteBuffer buffer = ByteBuffer.allocate(8);
+            buffer.putInt(0); // Message size
+            buffer.putInt(7); // Correlation ID
 
-            // Send correlation ID (4 bytes, big-endian)
-            out.write(new byte[] {0, 0, 0, 7});
-
-            // Ensure the output is sent
+            out.write(buffer.array());
             out.flush();
             System.out.println("Response sent with correlation ID: 7");
-        } catch (IOException e) {
-            System.out.println("IOException: " + e.getMessage());
-        } finally {
-            try {
-                if (clientSocket != null) {
-                    clientSocket.close();
-                }
-                if (serverSocket != null) {
-                    serverSocket.close();
-                }
-            } catch (IOException e) {
-                System.out.println("IOException: " + e.getMessage());
-            }
         }
     }
 }
