@@ -1,43 +1,36 @@
-import java.io.IOException;
-import java.io.OutputStream;
 import java.net.ServerSocket;
-import java.net.Socket;
-import java.nio.ByteBuffer;
+
+import client.Client;
+import kafka.Kafka;
+import protocol.ExchangeMapper;
 
 public class Main {
-    private static final int PORT = 9092;
 
+    public static final int PORT = 9092;
+    
     public static void main(String[] args) {
-        System.err.println("Server starting on port " + PORT);
+    	
+		        final var kafka = Kafka.load("/tmp/kraft-combined-logs/");
 
-        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+        final var exchangeMapper = new ExchangeMapper();
+
+        System.out.println("listen: %d".formatted(PORT));
+        try (final var serverSocket = new ServerSocket(PORT)) {
             serverSocket.setReuseAddress(true);
 
             while (true) {
-                System.out.println("Waiting for a client...");
-                try (Socket clientSocket = serverSocket.accept()) {
-                    System.out.println("Client connected: " + clientSocket.getInetAddress());
+                final var clientSocket = serverSocket.accept();
+                System.out.println("connected: %s".formatted(clientSocket.getRemoteSocketAddress()));
 
-                    // Handle client communication
-                    handleClient(clientSocket);
-                } catch (IOException e) {
-                    System.err.println("Error handling client: " + e.getMessage());
-                }
+                Thread.ofVirtual().start(new Client(kafka, exchangeMapper, clientSocket));
             }
-        } catch (IOException e) {
-            System.err.println("Server error: " + e.getMessage());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
+    	
+    	
+    	
     }
 
-    private static void handleClient(Socket clientSocket) throws IOException {
-        try (OutputStream out = clientSocket.getOutputStream()) {
-            ByteBuffer buffer = ByteBuffer.allocate(8);
-            buffer.putInt(0); // Message size
-            buffer.putInt(7); // Correlation ID
-
-            out.write(buffer.array());
-            out.flush();
-            System.out.println("Response sent with correlation ID: 7");
-        }
-    }
 }
+
